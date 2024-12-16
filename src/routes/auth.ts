@@ -76,19 +76,25 @@ const loginHandler = async (req: Request, res: Response) => {
 
 const registerHandler = async (req: Request, res: Response) => {
   try {
+    console.log("Iniciando registro - Body:", req.body);
+
     const { name, email, password } = req.body as RegisterBody;
 
+    console.log("Verificando usuário existente...");
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
 
     if (existingUser) {
+      console.log("Email já cadastrado:", email);
       res.status(400).json({ error: "Email já cadastrado" });
       return;
     }
 
+    console.log("Gerando hash da senha...");
     const hashedPassword = await bcrypt.hash(password, 10);
 
+    console.log("Criando usuário no banco...");
     const user = await prisma.user.create({
       data: {
         name,
@@ -98,12 +104,14 @@ const registerHandler = async (req: Request, res: Response) => {
       include: { profile: true },
     });
 
+    console.log("Usuário criado com sucesso. Gerando token...");
     const token = jwt.sign(
       { userId: user.id },
       process.env.JWT_SECRET || "sua_chave_secreta",
       { expiresIn: "24h" }
     );
 
+    console.log("Enviando resposta...");
     res.status(201).json({
       user: {
         id: user.id,
@@ -114,7 +122,11 @@ const registerHandler = async (req: Request, res: Response) => {
       token,
     });
   } catch (error) {
-    res.status(500).json({ error: "Erro ao criar usuário" });
+    console.error("Erro ao criar usuário:", error);
+    res.status(500).json({
+      error: "Erro ao criar usuário",
+      details: error instanceof Error ? error.message : "Erro desconhecido",
+    });
   }
 };
 
