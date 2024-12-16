@@ -5,18 +5,39 @@ import searchRouter from "./routes/search";
 
 const app = express();
 
-const allowedOrigins = ["https://empregozap.com.br", "http://localhost:3000"];
-
 app.use(
   cors({
-    origin: allowedOrigins,
-    credentials: true,
+    origin: [
+      "https://www.empregozap.com.br",
+      "https://empregozap.com.br",
+      "http://localhost:3000",
+    ],
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
+    maxAge: 86400,
   })
 );
 
+app.options("*", cors());
+
 app.use(express.json());
+
+app.use(
+  (
+    err: Error,
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction
+  ) => {
+    console.error(err.stack);
+    res.status(500).json({
+      error: "Erro interno do servidor",
+      details: err.message,
+    });
+  }
+);
+
 app.use("/api/auth", authRouter);
 app.use("/api", searchRouter);
 
