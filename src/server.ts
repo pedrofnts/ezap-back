@@ -5,9 +5,18 @@ import searchRouter from "./routes/search";
 
 const app = express();
 
-app.use(cors());
-app.use(express.json());
+const allowedOrigins = ["https://empregozap.com.br", "http://localhost:3000"];
 
+app.use(
+  cors({
+    origin: allowedOrigins,
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+app.use(express.json());
 app.use("/api/auth", authRouter);
 app.use("/api", searchRouter);
 
