@@ -1,5 +1,4 @@
 import express from "express";
-import cors from "cors";
 import authRouter from "./routes/auth";
 import searchRouter from "./routes/search";
 
@@ -13,13 +12,6 @@ app.use((req, res, next) => {
   });
   next();
 });
-
-app.use(
-  cors({
-    origin: "https://www.empregozap.com.br",
-    credentials: true,
-  })
-);
 
 app.use(express.json());
 
