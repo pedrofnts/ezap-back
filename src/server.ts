@@ -5,6 +5,7 @@ import searchRouter from "./routes/search";
 
 const app = express();
 
+// Logger middleware
 app.use((req, res, next) => {
   console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`, {
     body: req.body,
@@ -14,24 +15,25 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(
-  cors({
-    origin: [
-      "https://www.empregozap.com.br",
-      "https://empregozap.com.br",
-      "http://localhost:3000",
-    ],
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-    maxAge: 86400,
-  })
-);
+// Configuração do CORS
+const corsOptions = {
+  origin: [
+    "https://www.empregozap.com.br",
+    "https://empregozap.com.br",
+    "http://localhost:3000",
+  ],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true,
+  maxAge: 86400,
+};
 
-app.options("*", cors());
+// Aplicar CORS uma única vez
+app.use(cors(corsOptions));
 
 app.use(express.json());
 
+// Error handling middleware
 app.use(
   (
     err: Error,
