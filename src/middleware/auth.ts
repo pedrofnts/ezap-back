@@ -1,43 +1,44 @@
-import { Request, Response, NextFunction, RequestHandler } from "express";
-import jwt from "jsonwebtoken";
+import { Request, Response, NextFunction } from "express";
+import { createClient } from "@supabase/supabase-js";
 import { PrismaClient, User } from "@prisma/client";
 
 const prisma = new PrismaClient();
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_KEY!
+);
 
-interface JwtPayload {
-  userId: number;
-}
-
-interface RequestWithUser extends Request {
+export interface AuthenticatedRequest extends Request {
   user?: User;
 }
 
-export const authenticateToken = (async (
-  req: RequestWithUser,
+export const authenticateToken = async (
+  req: AuthenticatedRequest,
   res: Response,
   next: NextFunction
 ) => {
   try {
-    const authHeader = req.headers["authorization"];
-    const token = authHeader && authHeader.split(" ")[1];
-
+    const token = req.headers.authorization?.split(" ")[1];
     if (!token) {
       res.status(401).json({ error: "Token não fornecido" });
       return;
     }
 
-    const decoded = jwt.verify(
-      token,
-      process.env.JWT_SECRET || "sua_chave_secreta"
-    ) as JwtPayload;
+    const {
+      data: { user: supabaseUser },
+    } = await supabase.auth.getUser(token);
+    if (!supabaseUser) {
+      res.status(401).json({ error: "Usuário não autenticado" });
+      return;
+    }
 
     const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
+      where: { supabase_uid: supabaseUser.id },
       include: { profile: true },
     });
 
     if (!user) {
-      res.status(401).json({ error: "Usuário não encontrado" });
+      res.status(404).json({ error: "Usuário não encontrado" });
       return;
     }
 
@@ -46,4 +47,4 @@ export const authenticateToken = (async (
   } catch (error) {
     res.status(403).json({ error: "Token inválido" });
   }
-}) as RequestHandler;
+};

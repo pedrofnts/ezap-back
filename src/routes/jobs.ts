@@ -80,11 +80,6 @@ router.post("/webhook", async (req: Request, res: Response) => {
       isConfidential: job.is_confidential || false,
     }));
 
-    // Remover vagas antigas desta busca
-    await prisma.job.deleteMany({
-      where: { searchId: search.id },
-    });
-
     // Inserir novas vagas
     await prisma.job.createMany({
       data: jobsData,

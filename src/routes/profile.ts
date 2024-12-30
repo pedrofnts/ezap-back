@@ -6,6 +6,7 @@ import express, {
 } from "express";
 import { PrismaClient, User } from "@prisma/client";
 import { authenticateToken } from "../middleware/auth";
+import { createSearch } from "../utils/searchApi";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -16,6 +17,10 @@ interface ProfileBody {
   workMode?: string;
   minSalary?: number;
   maxSalary?: number;
+  phone?: string;
+  notifications?: boolean;
+  notificationTime?: string;
+  whatsappActive?: boolean;
 }
 
 interface RequestWithUser extends Request {
@@ -56,6 +61,14 @@ router.put("/", authenticateToken, (async (
 
     const data: ProfileBody = req.body;
 
+    // Atualiza o telefone do usuário também
+    if (data.phone) {
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { phone: data.phone },
+      });
+    }
+
     const profile = await prisma.profile.upsert({
       where: { userId: req.user.id },
       update: data,
@@ -88,6 +101,7 @@ router.put("/", authenticateToken, (async (
 
     res.json(profile);
   } catch (error) {
+    console.error("Erro ao atualizar perfil:", error);
     res.status(500).json({ error: "Erro ao atualizar perfil" });
   }
 }) as RequestHandler);
