@@ -8,21 +8,24 @@ generator client {
 }
 
 model User {
-  id        String    @id @default(cuid())
-  email     String    @unique
+  id        Int           @id @default(autoincrement())
+  email     String        @unique
   name      String
   password  String
   phone     String?
   profile   Profile?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  searches  Search[]
+  jobViews  JobView[]
+  favorites JobFavorite[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
   Account   Account[]
   Session   Session[]
 }
 
 model Profile {
-  id               String   @id @default(cuid())
-  userId           String   @unique
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique
   user             User     @relation(fields: [userId], references: [id])
   location         String?
   jobTitle         String?
@@ -37,9 +40,64 @@ model Profile {
   updatedAt        DateTime @updatedAt
 }
 
+model Search {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  jobs      Job[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Job {
+  id             Int           @id @default(autoincrement())
+  searchId       Int
+  search         Search        @relation(fields: [searchId], references: [id])
+  cargo          String
+  empresa        String
+  cidade         String
+  estado         String
+  descricao      String        @db.Text
+  url            String
+  origem         String
+  dataPublicacao DateTime?
+  nivel          String?
+  tipo           String
+  salarioMinimo  Float?
+  salarioMaximo  Float?
+  isHomeOffice   Boolean       @default(false)
+  isConfidential Boolean       @default(false)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  views          JobView[]
+  favorites      JobFavorite[]
+}
+
+model JobView {
+  id        Int      @id @default(autoincrement())
+  jobId     Int
+  userId    Int
+  job       Job      @relation(fields: [jobId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, userId])
+}
+
+model JobFavorite {
+  id        Int      @id @default(autoincrement())
+  jobId     Int
+  userId    Int
+  job       Job      @relation(fields: [jobId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([jobId, userId])
+}
+
 model Account {
-  id                String  @id @default(cuid())
-  userId            String
+  id                Int     @id @default(autoincrement())
+  userId            Int
   type              String
   provider          String
   providerAccountId String
@@ -56,15 +114,15 @@ model Account {
 }
 
 model Session {
-  id           String   @id @default(cuid())
+  id           Int      @id @default(autoincrement())
   sessionToken String   @unique
-  userId       String
+  userId       Int
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model City {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   name      String
   state     String
   createdAt DateTime @default(now())
@@ -74,7 +132,7 @@ model City {
 }
 
 model JobArea {
-  id        String   @id @default(cuid())
+  id        Int      @id @default(autoincrement())
   name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

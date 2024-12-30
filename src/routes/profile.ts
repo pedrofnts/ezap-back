@@ -4,7 +4,7 @@ import express, {
   NextFunction,
   RequestHandler,
 } from "express";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, User } from "@prisma/client";
 import { authenticateToken } from "../middleware/auth";
 
 const router = express.Router();
@@ -18,14 +18,23 @@ interface ProfileBody {
   maxSalary?: number;
 }
 
+interface RequestWithUser extends Request {
+  user?: User;
+}
+
 router.get("/", authenticateToken, (async (
-  req: Request,
+  req: RequestWithUser,
   res: Response,
   next: NextFunction
 ) => {
   try {
+    if (!req.user?.id) {
+      res.status(401).json({ error: "Usuário não autenticado" });
+      return;
+    }
+
     const profile = await prisma.profile.findUnique({
-      where: { userId: req.user!.id },
+      where: { userId: req.user.id },
     });
 
     res.json(profile);
@@ -35,19 +44,24 @@ router.get("/", authenticateToken, (async (
 }) as RequestHandler);
 
 router.put("/", authenticateToken, (async (
-  req: Request,
+  req: RequestWithUser,
   res: Response,
   next: NextFunction
 ) => {
   try {
+    if (!req.user?.id) {
+      res.status(401).json({ error: "Usuário não autenticado" });
+      return;
+    }
+
     const data: ProfileBody = req.body;
 
     const profile = await prisma.profile.upsert({
-      where: { userId: req.user!.id },
+      where: { userId: req.user.id },
       update: data,
       create: {
         ...data,
-        userId: req.user!.id,
+        userId: req.user.id,
       },
     });
 

@@ -6,8 +6,9 @@ import express, {
 } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, User } from "@prisma/client";
 import { authenticateToken } from "../middleware/auth";
+import { createSearch } from "../utils/searchApi";
 
 const router = express.Router();
 const prisma = new PrismaClient();
@@ -37,7 +38,7 @@ interface ProfileBody {
 }
 
 interface RequestWithUser extends Request {
-  user?: any;
+  user?: User;
 }
 
 const loginHandler = async (req: Request, res: Response) => {
@@ -195,6 +196,20 @@ router.put("/profile", authenticateToken, (async (
         userId,
       },
     });
+
+    if (profile.location && profile.jobTitle) {
+      const [cidade, estado] = profile.location.split(" - ");
+      try {
+        await createSearch({
+          user_id: userId,
+          cargo: profile.jobTitle,
+          cidade,
+          estado,
+        });
+      } catch (error) {
+        console.error("Erro ao criar busca automática:", error);
+      }
+    }
 
     const updatedUser = await prisma.user.findUnique({
       where: { id: userId },

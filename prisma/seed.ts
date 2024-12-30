@@ -209,16 +209,17 @@ async function main() {
     { name: "Marceneiro" },
     { name: "Serralheiro" },
     { name: "Tatuador" },
-    { name: "Body Piercer" }
+    { name: "Body Piercer" },
   ];
 
-  for (const area of jobAreas) {
-    await prisma.jobArea.upsert({
-      where: { name: area.name },
-      update: {},
-      create: area,
-    });
-  }
+  // Limpar a tabela antes de inserir
+  await prisma.jobArea.deleteMany();
+
+  // Inserir todas as áreas de uma vez
+  await prisma.jobArea.createMany({
+    data: jobAreas,
+    skipDuplicates: true,
+  });
 }
 
 main()
