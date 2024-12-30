@@ -65,6 +65,27 @@ router.put("/", authenticateToken, (async (
       },
     });
 
+    // Se o perfil tem localização e cargo, cria uma busca
+    if (profile.location && profile.jobTitle) {
+      const [cidade, estado] = profile.location.split(" - ");
+      try {
+        // Formata o número de telefone (remove caracteres especiais e adiciona 55)
+        const whatsapp = profile.phone
+          ? `55${profile.phone.replace(/\D/g, "")}`
+          : null;
+
+        await createSearch({
+          user_id: req.user.id,
+          cargo: profile.jobTitle,
+          cidade,
+          estado,
+          whatsapp,
+        });
+      } catch (error) {
+        console.error("Erro ao criar busca:", error);
+      }
+    }
+
     res.json(profile);
   } catch (error) {
     res.status(500).json({ error: "Erro ao atualizar perfil" });

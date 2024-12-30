@@ -5,6 +5,7 @@ interface SearchPayload {
   cargo: string;
   cidade: string;
   estado: string;
+  whatsapp: string | null;
 }
 
 export async function createSearch(payload: SearchPayload): Promise<void> {

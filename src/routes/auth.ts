@@ -200,14 +200,19 @@ router.put("/profile", authenticateToken, (async (
     if (profile.location && profile.jobTitle) {
       const [cidade, estado] = profile.location.split(" - ");
       try {
+        const whatsapp = profile.phone
+          ? `55${profile.phone.replace(/\D/g, "")}`
+          : null;
+
         await createSearch({
           user_id: userId,
           cargo: profile.jobTitle,
           cidade,
           estado,
+          whatsapp,
         });
       } catch (error) {
-        console.error("Erro ao criar busca automática:", error);
+        console.error("Erro ao criar busca:", error);
       }
     }
 

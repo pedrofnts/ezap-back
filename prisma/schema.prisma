@@ -90,7 +90,7 @@ model JobFavorite {
   userId    Int
   job       Job      @relation(fields: [jobId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
-  createdAt DateTime @default(now())
+  createdAt DateTime @default(now()) 
 
   @@unique([jobId, userId])
 }
