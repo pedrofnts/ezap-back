@@ -1,5 +1,4 @@
 import express from "express";
-import cors from "cors";
 import authRouter from "./routes/auth";
 import jobsRouter from "./routes/jobs";
 import profileRouter from "./routes/profile";
@@ -10,13 +9,6 @@ import plansRouter from "./routes/plans";
 import billingRouter from "./routes/billing";
 
 const app = express();
-
-app.use(
-  cors({
-    origin: process.env.FRONTEND_URL || "http://localhost:3000",
-    credentials: true,
-  })
-);
 
 // Configuração especial para o webhook do Stripe
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
