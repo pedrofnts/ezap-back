@@ -489,10 +489,45 @@ router.post("/subscribe", authenticateToken, (async (
       existingSubscription &&
       existingSubscription.status === "ACTIVE"
     ) {
-      return res.status(400).json({
-        error: "Usuário já possui uma assinatura ativa",
-        subscription: existingSubscription,
-      });
+      // Se existe uma assinatura ativa e o provedor é diferente, cancela a anterior
+      if (existingSubscription.provider !== provider) {
+        if (
+          existingSubscription.provider === "STRIPE" &&
+          existingSubscription.stripeSubscription
+        ) {
+          // Cancela a assinatura no Stripe
+          await stripe.subscriptions.cancel(
+            existingSubscription.stripeSubscription.stripeSubscriptionId
+          );
+          await prisma.stripeSubscription.update({
+            where: { id: existingSubscription.stripeSubscription.id },
+            data: { status: "CANCELLED" },
+          });
+        } else if (
+          existingSubscription.provider === "ASAAS" &&
+          existingSubscription.asaasSubscription
+        ) {
+          // Cancela a assinatura no Asaas
+          await asaas.subscriptions.delete(
+            existingSubscription.asaasSubscription.asaasSubscriptionId
+          );
+          await prisma.asaasSubscription.update({
+            where: { id: existingSubscription.asaasSubscription.id },
+            data: { status: "CANCELLED" },
+          });
+        }
+
+        // Atualiza o status da assinatura central
+        await prisma.subscription.update({
+          where: { id: existingSubscription.id },
+          data: { status: "CANCELLED" },
+        });
+      } else {
+        return res.status(400).json({
+          error: "Usuário já possui uma assinatura ativa com este provedor",
+          subscription: existingSubscription,
+        });
+      }
     }
 
     if (provider === "STRIPE") {
