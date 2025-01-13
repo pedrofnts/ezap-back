@@ -8,20 +8,21 @@ generator client {
 }
 
 model User {
-  id           Int           @id @default(autoincrement())
-  email        String        @unique
-  name         String
-  supabase_uid String        @unique
-  password     String?
-  phone        String?
-  profile      Profile?
-  searches     Search[]
-  jobViews     JobView[]
-  favorites    JobFavorite[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
-  Account      Account[]
-  Session      Session[]
+  id             Int             @id @default(autoincrement())
+  email          String          @unique
+  name           String
+  supabase_uid   String          @unique
+  password       String?
+  phone          String?
+  profile        Profile?
+  searches       Search[]
+  jobViews       JobView[]
+  favorites      JobFavorite[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  Account        Account[]
+  Session        Session[]
+  StripeCustomer StripeCustomer?
 }
 
 model Profile {
@@ -137,4 +138,25 @@ model JobArea {
   name      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model StripeCustomer {
+  id               Int                  @id @default(autoincrement())
+  userId           Int                  @unique
+  user             User                 @relation(fields: [userId], references: [id])
+  stripeCustomerId String               @unique
+  subscriptions    StripeSubscription[]
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+}
+
+model StripeSubscription {
+  id                   Int            @id @default(autoincrement())
+  stripeSubscriptionId String         @unique
+  status               String
+  currentPeriodEnd     DateTime
+  customerId           Int
+  customer             StripeCustomer @relation(fields: [customerId], references: [id])
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
 }

@@ -4,6 +4,7 @@ import authRouter from "./routes/auth";
 import jobsRouter from "./routes/jobs";
 import profileRouter from "./routes/profile";
 import searchRouter from "./routes/search";
+import stripeRouter from "./routes/stripe";
 
 const app = express();
 
@@ -13,11 +14,18 @@ app.use(
     credentials: true,
   })
 );
+
+// Configuração especial para o webhook do Stripe
+app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
+
+// Configuração padrão para outras rotas
 app.use(express.json());
 
+// Rotas da API
 app.use("/api/auth", authRouter);
 app.use("/api/jobs", jobsRouter);
 app.use("/api/profile", profileRouter);
+app.use("/api/stripe", stripeRouter);
 app.use("/api", searchRouter);
 
 const port = process.env.PORT || 3001;

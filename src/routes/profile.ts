@@ -21,6 +21,7 @@ interface ProfileBody {
   notifications?: boolean;
   notificationTime?: string;
   whatsappActive?: boolean;
+  name?: string;
 }
 
 interface RequestWithUser extends Request {
@@ -61,7 +62,14 @@ router.put("/", authenticateToken, (async (
 
     const data: ProfileBody = req.body;
 
-    // Atualiza o telefone do usuário também
+    if (data.name) {
+      await prisma.user.update({
+        where: { id: req.user.id },
+        data: { name: data.name },
+      });
+      delete data.name;
+    }
+
     if (data.phone) {
       await prisma.user.update({
         where: { id: req.user.id },
@@ -78,11 +86,9 @@ router.put("/", authenticateToken, (async (
       },
     });
 
-    // Se o perfil tem localização e cargo, cria uma busca
     if (profile.location && profile.jobTitle) {
       const [cidade, estado] = profile.location.split(" - ");
       try {
-        // Formata o número de telefone (remove caracteres especiais e adiciona 55)
         const whatsapp = profile.phone
           ? `55${profile.phone.replace(/\D/g, "")}`
           : null;
