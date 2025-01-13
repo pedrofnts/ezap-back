@@ -23,7 +23,7 @@ router.get("/me", authenticateToken, (async (
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
       include: {
-        StripeCustomer: {
+        stripeCustomer: {
           include: {
             subscriptions: {
               orderBy: {
@@ -33,6 +33,15 @@ router.get("/me", authenticateToken, (async (
             },
           },
         },
+        asaasCustomer: {
+          include: {
+            subscriptions: {
+              orderBy: { createdAt: "desc" },
+              take: 1,
+            },
+          },
+        },
+        subscription: true,
       },
     });
 
@@ -40,8 +49,13 @@ router.get("/me", authenticateToken, (async (
       return res.status(404).json({ error: "Usuário não encontrado" });
     }
 
+    // Verifica se o usuário tem uma assinatura ativa
+    const subscription = user.subscription;
+    const subscriptionDetails =
+      user.stripeCustomer?.subscriptions[0] ||
+      user.asaasCustomer?.subscriptions[0];
+
     // Formata a resposta
-    const subscription = user.StripeCustomer?.subscriptions[0];
     const response = {
       user: {
         ...req.user,

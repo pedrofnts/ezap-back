@@ -3,6 +3,49 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  // Criar os planos
+  const plans = [
+    {
+      name: "Light",
+      description: "Plano Light - Acesso básico",
+      features: [
+        "Busca de vagas",
+        "Alertas por e-mail",
+        "Salvar vagas favoritas",
+      ],
+      price: 15.0,
+      interval: "week",
+      billingCycle: "weekly",
+      stripePriceId: "price_1QZIUyKs3g6lFwB4y4N13cOU",
+      active: true,
+    },
+    {
+      name: "Gold",
+      description: "Plano Gold - Acesso completo",
+      features: [
+        "Todas as funcionalidades do plano Light",
+        "Alertas por WhatsApp",
+        "Análise de compatibilidade com vagas",
+        "Prioridade nas buscas",
+      ],
+      price: 30.0,
+      interval: "month",
+      billingCycle: "monthly",
+      stripePriceId: "price_1QZIUyKs3g6lFwB4y4N13cOU",
+      active: true,
+    },
+  ];
+
+  // Limpar a tabela de planos antes de inserir
+  await prisma.plan.deleteMany();
+
+  // Inserir os planos
+  for (const plan of plans) {
+    await prisma.plan.create({
+      data: plan,
+    });
+  }
+
   // Inserir áreas de trabalho e profissões populares
   const jobAreas = [
     { name: "Engenheiro Civil" },

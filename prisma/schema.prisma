@@ -22,7 +22,9 @@ model User {
   updatedAt      DateTime        @updatedAt
   Account        Account[]
   Session        Session[]
-  StripeCustomer StripeCustomer?
+  subscription   Subscription?
+  stripeCustomer StripeCustomer?
+  asaasCustomer  AsaasCustomer?
 }
 
 model Profile {
@@ -140,23 +142,127 @@ model JobArea {
   updatedAt DateTime @updatedAt
 }
 
-model StripeCustomer {
-  id               Int                  @id @default(autoincrement())
-  userId           Int                  @unique
-  user             User                 @relation(fields: [userId], references: [id])
-  stripeCustomerId String               @unique
-  subscriptions    StripeSubscription[]
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+// Planos disponíveis
+model Plan {
+  id            String         @id @default(cuid())
+  name          String
+  description   String
+  features      String[]
+  price         Float
+  interval      String // month, year
+  billingCycle  String // weekly, monthly
+  stripePriceId String? // ID do preço no Stripe
+  asaasPlanId   String? // ID do plano no Asaas
+  active        Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  subscriptions Subscription[]
 }
 
+// Assinatura central
+model Subscription {
+  id                Int       @id @default(autoincrement())
+  userId            Int       @unique
+  planId            String
+  provider          String // STRIPE, ASAAS
+  status            String // PENDING, ACTIVE, CANCELLED, EXPIRED
+  currentPeriodEnd  DateTime
+  cancelAtPeriodEnd Boolean   @default(false)
+  trialEnd          DateTime?
+  priceAmount       Float
+  currency          String    @default("BRL")
+  interval          String // month, year
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relacionamentos
+  user               User                @relation(fields: [userId], references: [id])
+  plan               Plan                @relation(fields: [planId], references: [id])
+  stripeSubscription StripeSubscription?
+  asaasSubscription  AsaasSubscription?
+
+  @@unique([userId, status])
+}
+
+// Assinatura do Stripe
 model StripeSubscription {
-  id                   Int            @id @default(autoincrement())
-  stripeSubscriptionId String         @unique
-  status               String
-  currentPeriodEnd     DateTime
+  id                   Int      @id @default(autoincrement())
+  stripeSubscriptionId String   @unique
   customerId           Int
-  customer             StripeCustomer @relation(fields: [customerId], references: [id])
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
+  status               String // PENDING, ACTIVE, CANCELLED
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  // Relacionamentos
+  customer     StripeCustomer @relation(fields: [customerId], references: [id])
+  subscription Subscription   @relation(fields: [id], references: [id])
+}
+
+// Cliente do Stripe
+model StripeCustomer {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique
+  stripeCustomerId String   @unique
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relacionamentos
+  user          User                 @relation(fields: [userId], references: [id])
+  subscriptions StripeSubscription[]
+}
+
+// Assinatura do Asaas
+model AsaasSubscription {
+  id                  Int      @id @default(autoincrement())
+  asaasSubscriptionId String   @unique
+  customerId          Int
+  value               Float
+  cycle               String
+  status              String // PENDING, ACTIVE, CANCELLED
+  nextDueDate         DateTime
+  description         String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  // Relacionamentos
+  customer     AsaasCustomer  @relation(fields: [customerId], references: [id])
+  subscription Subscription   @relation(fields: [id], references: [id])
+  payments     AsaasPayment[]
+}
+
+// Cliente do Asaas
+model AsaasCustomer {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique
+  asaasCustomerId String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relacionamentos
+  user          User                @relation(fields: [userId], references: [id])
+  subscriptions AsaasSubscription[]
+  payments      AsaasPayment[]
+}
+
+// Pagamento do Asaas
+model AsaasPayment {
+  id             Int      @id @default(autoincrement())
+  asaasPaymentId String   @unique
+  customerId     Int
+  subscriptionId Int
+  value          Float
+  status         String
+  billingType    String
+  dueDate        DateTime
+  invoiceUrl     String?
+  pixQrCodeUrl   String?
+  pixKey         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relacionamentos
+  customer     AsaasCustomer     @relation(fields: [customerId], references: [id])
+  subscription AsaasSubscription @relation(fields: [subscriptionId], references: [id])
 }

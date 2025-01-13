@@ -5,6 +5,9 @@ import jobsRouter from "./routes/jobs";
 import profileRouter from "./routes/profile";
 import searchRouter from "./routes/search";
 import stripeRouter from "./routes/stripe";
+import asaasRouter from "./routes/asaas";
+import plansRouter from "./routes/plans";
+import billingRouter from "./routes/billing";
 
 const app = express();
 
@@ -26,7 +29,10 @@ app.use("/api/auth", authRouter);
 app.use("/api/jobs", jobsRouter);
 app.use("/api/profile", profileRouter);
 app.use("/api/stripe", stripeRouter);
+app.use("/api/asaas", asaasRouter);
 app.use("/api", searchRouter);
+app.use("/api/plans", plansRouter);
+app.use("/api/billing", billingRouter);
 
 const port = process.env.PORT || 3001;
 app.listen(port, () => {
