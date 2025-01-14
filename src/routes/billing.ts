@@ -13,7 +13,6 @@ const asaas = new AsaasClient(process.env.ASAAS_API_KEY!, {
   sandbox: process.env.NODE_ENV !== "production",
 });
 
-// Rota para obter dados da página de billing
 router.get("/", authenticateToken, (async (
   req: AuthenticatedRequest,
   res: Response
@@ -24,7 +23,6 @@ router.get("/", authenticateToken, (async (
       return res.status(401).json({ error: "Usuário não autenticado" });
     }
 
-    // Busca a assinatura atual com todos os detalhes
     const subscription = await prisma.subscription.findFirst({
       where: {
         userId,
@@ -39,7 +37,7 @@ router.get("/", authenticateToken, (async (
               orderBy: {
                 dueDate: "desc",
               },
-              take: 24, // Últimos 24 pagamentos
+              take: 24,
             },
           },
         },
@@ -56,7 +54,6 @@ router.get("/", authenticateToken, (async (
         subscription.provider === "STRIPE" &&
         subscription.stripeSubscription
       ) {
-        // Busca o customer do Stripe
         const stripeCustomer = await prisma.stripeCustomer.findUnique({
           where: { userId },
         });
@@ -67,7 +64,6 @@ router.get("/", authenticateToken, (async (
             .json({ error: "Cliente Stripe não encontrado" });
         }
 
-        // Busca detalhes atualizados da assinatura no Stripe
         const stripeSubscription = await stripe.subscriptions.retrieve(
           subscription.stripeSubscription.stripeSubscriptionId,
           {
@@ -79,7 +75,6 @@ router.get("/", authenticateToken, (async (
           }
         );
 
-        // Busca as últimas faturas
         const invoices = await stripe.invoices.list({
           customer: stripeCustomer.stripeCustomerId,
           limit: 24,
@@ -95,17 +90,14 @@ router.get("/", authenticateToken, (async (
         subscription.provider === "ASAAS" &&
         subscription.asaasSubscription
       ) {
-        // Busca detalhes atualizados da assinatura no Asaas
         const asaasSubscription = await asaas.subscriptions.getById(
           subscription.asaasSubscription.asaasSubscriptionId
         );
 
-        // Busca os pagamentos/faturas
         const payments = await asaas.subscriptions.getPayments(
           subscription.asaasSubscription.asaasSubscriptionId
         );
 
-        // Se tiver um pagamento pendente, busca o QR Code
         let lastPaymentWithQRCode = null;
         if (
           payments.data[0] &&
@@ -126,7 +118,7 @@ router.get("/", authenticateToken, (async (
           subscription: asaasSubscription,
           payments: payments.data,
           lastPaymentWithQRCode,
-          canUpdatePaymentMethod: false, // PIX não permite atualização de método
+          canUpdatePaymentMethod: false,
         };
       }
     }
@@ -143,7 +135,6 @@ router.get("/", authenticateToken, (async (
   }
 }) as RequestHandler);
 
-// Rota para reativar uma assinatura cancelada
 router.post("/reactivate", authenticateToken, (async (
   req: AuthenticatedRequest,
   res: Response
@@ -169,19 +160,16 @@ router.post("/reactivate", authenticateToken, (async (
         },
       },
     });
-
     if (!subscription) {
       return res.status(404).json({ error: "Assinatura não encontrada" });
     }
 
-    // Reativa a assinatura no provedor
     if (subscription.provider === "STRIPE" && subscription.stripeSubscription) {
       await stripe.subscriptions.update(
         subscription.stripeSubscription.stripeSubscriptionId,
         { cancel_at_period_end: false }
       );
 
-      // Atualiza o status da assinatura do Stripe
       await prisma.stripeSubscription.update({
         where: { id: subscription.stripeSubscription.id },
         data: {
@@ -193,7 +181,6 @@ router.post("/reactivate", authenticateToken, (async (
       subscription.provider === "ASAAS" &&
       subscription.asaasSubscription
     ) {
-      // Busca o cliente Asaas
       const asaasCustomer = await prisma.asaasCustomer.findUnique({
         where: { id: subscription.asaasSubscription.customerId },
       });
@@ -202,7 +189,6 @@ router.post("/reactivate", authenticateToken, (async (
         return res.status(404).json({ error: "Cliente Asaas não encontrado" });
       }
 
-      // No Asaas, precisamos criar uma nova assinatura
       const nextDueDate = new Date();
       nextDueDate.setDate(nextDueDate.getDate() + 1);
 
@@ -217,7 +203,6 @@ router.post("/reactivate", authenticateToken, (async (
             : "WEEKLY",
       });
 
-      // Atualiza a assinatura do Asaas
       await prisma.asaasSubscription.update({
         where: { id: subscription.asaasSubscription.id },
         data: {
@@ -228,7 +213,6 @@ router.post("/reactivate", authenticateToken, (async (
       });
     }
 
-    // Atualiza o status da assinatura central
     const updatedSubscription = await prisma.subscription.update({
       where: { id: subscription.id },
       data: {
@@ -249,7 +233,6 @@ router.post("/reactivate", authenticateToken, (async (
   }
 }) as RequestHandler);
 
-// Rota para consultar status do pagamento da assinatura
 router.get("/payment-status", authenticateToken, (async (
   req: AuthenticatedRequest,
   res: Response
@@ -260,7 +243,6 @@ router.get("/payment-status", authenticateToken, (async (
       return res.status(401).json({ error: "Usuário não autenticado" });
     }
 
-    // Busca a assinatura mais recente do usuário
     const subscription = await prisma.subscription.findFirst({
       where: {
         userId,
@@ -290,12 +272,10 @@ router.get("/payment-status", authenticateToken, (async (
     }
 
     if (subscription.provider === "ASAAS" && subscription.asaasSubscription) {
-      // Busca o status atualizado da assinatura no Asaas
       const asaasSubscription = await asaas.subscriptions.getById(
         subscription.asaasSubscription.asaasSubscriptionId
       );
 
-      // Busca o último pagamento
       const lastPayment = subscription.asaasSubscription.payments[0];
       let paymentDetails = null;
 
@@ -358,7 +338,6 @@ router.get("/payment-status", authenticateToken, (async (
   }
 }) as RequestHandler);
 
-// Rota para iniciar uma assinatura
 router.post("/subscribe", authenticateToken, (async (
   req: AuthenticatedRequest,
   res: Response
@@ -371,7 +350,6 @@ router.post("/subscribe", authenticateToken, (async (
       return res.status(401).json({ error: "Usuário não autenticado" });
     }
 
-    // Busca o plano
     const plan = await prisma.plan.findUnique({
       where: { id: planId },
     });
@@ -380,165 +358,42 @@ router.post("/subscribe", authenticateToken, (async (
       return res.status(404).json({ error: "Plano não encontrado" });
     }
 
-    // Verifica se já existe uma assinatura ativa
     const existingSubscription = await prisma.subscription.findFirst({
-      where: {
-        userId,
-        status: { in: ["ACTIVE", "PENDING"] },
-      },
+      where: { userId },
       include: {
         stripeSubscription: true,
         asaasSubscription: true,
       },
+      orderBy: { createdAt: "desc" },
     });
 
-    // Se existe uma assinatura pendente e o provedor é diferente, cancela a anterior
-    if (
-      existingSubscription &&
-      existingSubscription.status === "PENDING" &&
-      existingSubscription.provider !== provider
-    ) {
-      if (
-        existingSubscription.provider === "STRIPE" &&
-        existingSubscription.stripeSubscription
-      ) {
-        // Cancela a assinatura no Stripe
-        await stripe.subscriptions.cancel(
-          existingSubscription.stripeSubscription.stripeSubscriptionId
-        );
-        await prisma.stripeSubscription.update({
-          where: { id: existingSubscription.stripeSubscription.id },
-          data: { status: "CANCELLED" },
-        });
-      } else if (
-        existingSubscription.provider === "ASAAS" &&
-        existingSubscription.asaasSubscription
-      ) {
-        // Cancela a assinatura no Asaas
-        await asaas.subscriptions.delete(
-          existingSubscription.asaasSubscription.asaasSubscriptionId
-        );
-        await prisma.asaasSubscription.update({
-          where: { id: existingSubscription.asaasSubscription.id },
-          data: { status: "CANCELLED" },
-        });
-      }
-
-      // Atualiza o status da assinatura central
-      await prisma.subscription.update({
-        where: { id: existingSubscription.id },
-        data: { status: "CANCELLED" },
-      });
-    } else if (
-      existingSubscription &&
-      existingSubscription.status === "PENDING" &&
-      existingSubscription.provider === provider
-    ) {
-      // Se já existe uma assinatura pendente com o mesmo provedor, retorna os dados necessários
-      if (provider === "STRIPE" && existingSubscription.stripeSubscription) {
-        // Busca o customer do Stripe
-        const stripeCustomer = await prisma.stripeCustomer.findUnique({
-          where: { userId },
-        });
-
-        if (!stripeCustomer) {
-          return res
-            .status(404)
-            .json({ error: "Cliente Stripe não encontrado" });
-        }
-
-        const session = await stripe.checkout.sessions.create({
-          customer: stripeCustomer.stripeCustomerId,
-          line_items: [{ price: plan.stripePriceId!, quantity: 1 }],
-          mode: "subscription",
-          success_url: successUrl,
-          cancel_url: cancelUrl,
-          payment_method_types: ["card"],
-          allow_promotion_codes: true,
-          billing_address_collection: "required",
-          customer_update: {
-            address: "auto",
-            name: "auto",
-          },
-        });
-
-        return res.json({ url: session.url });
-      } else if (
-        provider === "ASAAS" &&
-        existingSubscription.asaasSubscription
-      ) {
-        // Busca o último pagamento pendente
-        const payments = await asaas.subscriptions.getPayments(
-          existingSubscription.asaasSubscription.asaasSubscriptionId
-        );
-        const lastPayment = payments.data[0];
-
-        if (lastPayment) {
-          const pixQrCode = await asaas.payments.getPixQrCode(lastPayment.id!);
-          return res.json({
-            subscription: existingSubscription,
-            payment: {
-              ...lastPayment,
-              pixQrCodeUrl: pixQrCode.encodedImage,
-              pixKey: pixQrCode.payload,
-            },
-          });
-        }
-      }
-    } else if (
-      existingSubscription &&
-      existingSubscription.status === "ACTIVE"
-    ) {
-      // Se existe uma assinatura ativa e o provedor é diferente, cancela a anterior
-      if (existingSubscription.provider !== provider) {
-        if (
-          existingSubscription.provider === "STRIPE" &&
-          existingSubscription.stripeSubscription
-        ) {
-          // Cancela a assinatura no Stripe
-          await stripe.subscriptions.cancel(
-            existingSubscription.stripeSubscription.stripeSubscriptionId
-          );
-          await prisma.stripeSubscription.update({
-            where: { id: existingSubscription.stripeSubscription.id },
-            data: { status: "CANCELLED" },
-          });
-        } else if (
-          existingSubscription.provider === "ASAAS" &&
-          existingSubscription.asaasSubscription
-        ) {
-          // Cancela a assinatura no Asaas
-          await asaas.subscriptions.delete(
-            existingSubscription.asaasSubscription.asaasSubscriptionId
-          );
-          await prisma.asaasSubscription.update({
-            where: { id: existingSubscription.asaasSubscription.id },
-            data: { status: "CANCELLED" },
-          });
-        }
-
-        // Atualiza o status da assinatura central
-        await prisma.subscription.update({
-          where: { id: existingSubscription.id },
-          data: { status: "CANCELLED" },
-        });
-      } else {
-        return res.status(400).json({
-          error: "Usuário já possui uma assinatura ativa com este provedor",
-          subscription: existingSubscription,
-        });
-      }
+    if (existingSubscription && existingSubscription.status === "ACTIVE") {
+      return res.status(400).json({ error: "Assinatura já existe" });
     }
 
+    const nextDueDate = new Date();
+    nextDueDate.setDate(nextDueDate.getDate() + 1);
+
+    const subscriptionData = {
+      planId,
+      provider,
+      status: "PENDING",
+      priceAmount: plan.price,
+      interval: plan.interval,
+      currentPeriodEnd: nextDueDate,
+    };
+
     if (provider === "STRIPE") {
-      // Cria ou busca o cliente no Stripe
       let stripeCustomer = await prisma.stripeCustomer.findUnique({
         where: { userId },
         include: { user: true },
       });
 
       if (!stripeCustomer) {
-        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+        });
+
         if (!user) {
           return res.status(404).json({ error: "Usuário não encontrado" });
         }
@@ -546,67 +401,91 @@ router.post("/subscribe", authenticateToken, (async (
         const customer = await stripe.customers.create({
           email: user.email,
           name: user.name,
+          metadata: {
+            userId: user.id.toString(),
+          },
         });
 
         stripeCustomer = await prisma.stripeCustomer.create({
           data: {
-            userId,
+            userId: user.id,
             stripeCustomerId: customer.id,
           },
           include: { user: true },
         });
       }
 
-      // Cria a sessão de checkout
       const session = await stripe.checkout.sessions.create({
         customer: stripeCustomer.stripeCustomerId,
-        line_items: [{ price: plan.stripePriceId!, quantity: 1 }],
+        payment_method_types: ["card"],
         mode: "subscription",
         success_url: successUrl,
         cancel_url: cancelUrl,
-        payment_method_types: ["card"],
-        allow_promotion_codes: true,
-        billing_address_collection: "required",
-        customer_update: {
-          address: "auto",
-          name: "auto",
-        },
+        line_items: [
+          {
+            price: plan.stripePriceId!,
+            quantity: 1,
+          },
+        ],
       });
 
-      // Cria a assinatura central em status PENDING
-      const subscription = await prisma.subscription.create({
-        data: {
-          userId,
-          planId,
-          provider: "STRIPE",
-          status: "PENDING",
-          priceAmount: plan.price,
-          interval: plan.interval,
-          currentPeriodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 horas a partir de agora
-        },
-      });
+      let subscription;
+      if (existingSubscription) {
+        subscription = await prisma.subscription.update({
+          where: { id: existingSubscription.id },
+          data: subscriptionData,
+        });
 
-      // Cria a assinatura do Stripe
-      await prisma.stripeSubscription.create({
-        data: {
-          id: subscription.id,
-          stripeSubscriptionId: session.id, // Temporariamente usa o session.id
-          status: "PENDING",
-          customerId: stripeCustomer.id,
-          currentPeriodEnd: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 horas a partir de agora
-        },
-      });
+        if (existingSubscription.stripeSubscription) {
+          await prisma.stripeSubscription.update({
+            where: { id: existingSubscription.stripeSubscription.id },
+            data: {
+              stripeSubscriptionId: session.id,
+              status: "PENDING",
+              currentPeriodEnd: nextDueDate,
+            },
+          });
+        } else {
+          await prisma.stripeSubscription.create({
+            data: {
+              id: subscription.id,
+              stripeSubscriptionId: session.id,
+              status: "PENDING",
+              customerId: stripeCustomer.id,
+              currentPeriodEnd: nextDueDate,
+            },
+          });
+        }
+      } else {
+        subscription = await prisma.subscription.create({
+          data: {
+            userId,
+            ...subscriptionData,
+          },
+        });
+
+        await prisma.stripeSubscription.create({
+          data: {
+            id: subscription.id,
+            stripeSubscriptionId: session.id,
+            status: "PENDING",
+            customerId: stripeCustomer.id,
+            currentPeriodEnd: nextDueDate,
+          },
+        });
+      }
 
       res.json({ url: session.url });
     } else if (provider === "ASAAS") {
-      // Cria ou busca o cliente no Asaas
-      let asaasCustomer = await prisma.asaasCustomer.findUnique({
+      let asaasCustomer = await prisma.asaasCustomer.findFirst({
         where: { userId },
-        include: { user: true },
       });
 
       if (!asaasCustomer) {
-        const user = await prisma.user.findUnique({ where: { id: userId } });
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+        });
+
         if (!user) {
           return res.status(404).json({ error: "Usuário não encontrado" });
         }
@@ -620,22 +499,11 @@ router.post("/subscribe", authenticateToken, (async (
 
         asaasCustomer = await prisma.asaasCustomer.create({
           data: {
-            userId,
-            asaasCustomerId: customer.id,
+            userId: user.id,
+            asaasCustomerId: customer.id!,
           },
-          include: { user: true },
         });
-
-        if (!asaasCustomer) {
-          return res
-            .status(500)
-            .json({ error: "Erro ao criar cliente no Asaas" });
-        }
       }
-
-      // Neste ponto, temos certeza que asaasCustomer existe e não é null
-      const nextDueDate = new Date();
-      nextDueDate.setDate(nextDueDate.getDate() + 1);
 
       const asaasSubscription = await asaas.subscriptions.create({
         customer: asaasCustomer.asaasCustomerId,
@@ -645,73 +513,109 @@ router.post("/subscribe", authenticateToken, (async (
         cycle: plan.interval === "month" ? "MONTHLY" : "WEEKLY",
       });
 
-      // Cria as assinaturas em uma transação
-      const result = await prisma.$transaction(async (prisma) => {
-        // Neste ponto, já verificamos que asaasCustomer não é null
-        const subscription = await prisma.subscription.create({
+      let subscription;
+      if (existingSubscription) {
+        subscription = await prisma.subscription.update({
+          where: { id: existingSubscription.id },
+          data: subscriptionData,
+        });
+
+        if (existingSubscription.asaasSubscription) {
+          await prisma.asaasSubscription.update({
+            where: { id: existingSubscription.asaasSubscription.id },
+            data: {
+              asaasSubscriptionId: asaasSubscription.id!,
+              status: "PENDING",
+              customerId: asaasCustomer.id,
+              cycle: plan.interval,
+              value: plan.price,
+              nextDueDate: nextDueDate,
+            },
+          });
+        } else {
+          await prisma.asaasSubscription.create({
+            data: {
+              id: subscription.id,
+              asaasSubscriptionId: asaasSubscription.id!,
+              status: "PENDING",
+              customerId: asaasCustomer.id,
+              cycle: plan.interval,
+              value: plan.price,
+              nextDueDate: nextDueDate,
+            },
+          });
+        }
+      } else {
+        subscription = await prisma.subscription.create({
           data: {
             userId,
-            planId,
-            provider: "ASAAS",
-            status: "PENDING",
-            currentPeriodEnd: new Date(asaasSubscription.nextDueDate!),
-            priceAmount: plan.price,
-            interval: plan.interval,
+            ...subscriptionData,
           },
         });
 
-        // Asserção de tipo para garantir que o TypeScript entende que asaasCustomer existe
-        if (!asaasCustomer) throw new Error("AsaasCustomer não encontrado");
-
-        // Cria a assinatura do Asaas
-        const savedAsaasSubscription = await prisma.asaasSubscription.create({
+        await prisma.asaasSubscription.create({
           data: {
-            id: subscription.id, // Usa o mesmo ID da subscription central
+            id: subscription.id,
             asaasSubscriptionId: asaasSubscription.id!,
-            customerId: asaasCustomer.id,
-            value: asaasSubscription.value!,
-            cycle: asaasSubscription.cycle!,
             status: "PENDING",
-            nextDueDate: new Date(asaasSubscription.nextDueDate!),
-            description: asaasSubscription.description,
+            customerId: asaasCustomer.id,
+            cycle: plan.interval,
+            value: plan.price,
+            nextDueDate: nextDueDate,
           },
         });
+      }
 
-        return { subscription, savedAsaasSubscription };
-      });
-
-      const { subscription, savedAsaasSubscription } = result;
-
-      // Busca os pagamentos da assinatura
-      const subscriptionPayments = await asaas.subscriptions.getPayments(
+      const firstPayment = await asaas.subscriptions.getPayments(
         asaasSubscription.id!
       );
-      const firstPayment = subscriptionPayments.data[0];
+      if (firstPayment.data[0]) {
+        const pixQrCode = await asaas.payments.getPixQrCode(
+          firstPayment.data[0].id!
+        );
 
-      if (firstPayment) {
-        // Busca o QR Code PIX
-        const pixQrCode = await asaas.payments.getPixQrCode(firstPayment.id!);
+        // Verificar se existem dados obrigatórios antes de criar o payment
+        if (!firstPayment.data[0].dueDate || !firstPayment.data[0].value) {
+          throw new Error("Dados de pagamento inválidos do Asaas");
+        }
 
-        // Salva o pagamento
-        await prisma.asaasPayment.create({
-          data: {
-            asaasPaymentId: firstPayment.id!,
-            customerId: asaasCustomer.id,
-            subscriptionId: savedAsaasSubscription.id,
-            value: firstPayment.value!,
-            status: firstPayment.status!,
-            billingType: firstPayment.billingType!,
-            dueDate: new Date(firstPayment.dueDate!),
-            invoiceUrl: firstPayment.invoiceUrl || null,
-            pixQrCodeUrl: pixQrCode.encodedImage || null,
-            pixKey: pixQrCode.payload || null,
+        // Buscar pagamentos existentes
+        const existingPayment = await prisma.asaasPayment.findFirst({
+          where: {
+            subscriptionId: subscription.id,
+          },
+          orderBy: {
+            createdAt: "desc",
           },
         });
+
+        const paymentData = {
+          asaasPaymentId: firstPayment.data[0].id!,
+          value: firstPayment.data[0].value,
+          billingType: firstPayment.data[0].billingType || "PIX",
+          status: firstPayment.data[0].status || "PENDING",
+          dueDate: new Date(firstPayment.data[0].dueDate),
+          subscriptionId: subscription.id,
+          customerId: asaasCustomer.id,
+        };
+
+        // Se já existe um pagamento, atualiza
+        if (existingPayment) {
+          await prisma.asaasPayment.update({
+            where: { id: existingPayment.id },
+            data: paymentData,
+          });
+        } else {
+          // Caso contrário, cria um novo
+          await prisma.asaasPayment.create({
+            data: paymentData,
+          });
+        }
 
         res.json({
           subscription,
           payment: {
-            ...firstPayment,
+            ...firstPayment.data[0],
             pixQrCodeUrl: pixQrCode.encodedImage,
             pixKey: pixQrCode.payload,
           },
@@ -719,8 +623,6 @@ router.post("/subscribe", authenticateToken, (async (
       } else {
         res.json({ subscription });
       }
-    } else {
-      res.status(400).json({ error: "Provedor de pagamento inválido" });
     }
   } catch (error) {
     console.error("Erro ao iniciar assinatura:", error);

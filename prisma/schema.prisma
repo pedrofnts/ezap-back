@@ -162,7 +162,7 @@ model Plan {
 // Assinatura central
 model Subscription {
   id                Int       @id @default(autoincrement())
-  userId            Int       @unique
+  userId            Int
   planId            String
   provider          String // STRIPE, ASAAS
   status            String // PENDING, ACTIVE, CANCELLED, EXPIRED
