@@ -630,4 +630,282 @@ router.post("/subscribe", authenticateToken, (async (
   }
 }) as RequestHandler);
 
+router.post("/cancel", authenticateToken, (async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado" });
+    }
+
+    const subscription = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        status: { in: ["ACTIVE", "PENDING"] },
+      },
+      include: {
+        stripeSubscription: true,
+        asaasSubscription: true,
+      },
+    });
+
+    if (!subscription) {
+      return res.status(404).json({ error: "Assinatura não encontrada" });
+    }
+
+    if (subscription.provider === "STRIPE" && subscription.stripeSubscription) {
+      // Cancela a assinatura no Stripe imediatamente
+      await stripe.subscriptions.cancel(
+        subscription.stripeSubscription.stripeSubscriptionId
+      );
+
+      await prisma.stripeSubscription.update({
+        where: { id: subscription.stripeSubscription.id },
+        data: {
+          status: "CANCELLED",
+          cancelAtPeriodEnd: false,
+        },
+      });
+    } else if (
+      subscription.provider === "ASAAS" &&
+      subscription.asaasSubscription
+    ) {
+      // Cancela a assinatura no Asaas
+      await asaas.subscriptions.delete(
+        subscription.asaasSubscription.asaasSubscriptionId
+      );
+
+      await prisma.asaasSubscription.update({
+        where: { id: subscription.asaasSubscription.id },
+        data: {
+          status: "CANCELLED",
+        },
+      });
+    }
+
+    // Atualiza a assinatura central
+    const updatedSubscription = await prisma.subscription.update({
+      where: { id: subscription.id },
+      data: {
+        status: "CANCELLED",
+        cancelAtPeriodEnd: false,
+      },
+      include: {
+        plan: true,
+        stripeSubscription: true,
+        asaasSubscription: true,
+      },
+    });
+
+    res.json({ subscription: updatedSubscription });
+  } catch (error) {
+    console.error("Erro ao cancelar assinatura:", error);
+    res.status(500).json({ error: "Erro ao cancelar assinatura" });
+  }
+}) as RequestHandler);
+
+router.post("/change-plan", authenticateToken, (async (
+  req: AuthenticatedRequest,
+  res: Response
+) => {
+  try {
+    const { planId } = req.body;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return res.status(401).json({ error: "Usuário não autenticado" });
+    }
+
+    if (!planId) {
+      return res.status(400).json({ error: "ID do plano não fornecido" });
+    }
+
+    // Busca o novo plano
+    const newPlan = await prisma.plan.findUnique({
+      where: { id: planId },
+    });
+
+    if (!newPlan) {
+      return res.status(404).json({ error: "Plano não encontrado" });
+    }
+
+    // Busca a assinatura atual
+    const currentSubscription = await prisma.subscription.findFirst({
+      where: {
+        userId,
+        status: { in: ["ACTIVE", "PENDING"] },
+      },
+      include: {
+        plan: true,
+        stripeSubscription: true,
+        asaasSubscription: true,
+      },
+    });
+
+    if (!currentSubscription) {
+      return res.status(404).json({ error: "Assinatura atual não encontrada" });
+    }
+
+    if (currentSubscription.planId === planId) {
+      return res.status(400).json({ error: "Usuário já está neste plano" });
+    }
+
+    if (
+      currentSubscription.provider === "STRIPE" &&
+      currentSubscription.stripeSubscription
+    ) {
+      if (!newPlan.stripePriceId) {
+        return res
+          .status(400)
+          .json({ error: "Plano não configurado para Stripe" });
+      }
+
+      // Atualiza a assinatura no Stripe
+      await stripe.subscriptions.update(
+        currentSubscription.stripeSubscription.stripeSubscriptionId,
+        {
+          items: [
+            {
+              id: (
+                await stripe.subscriptions.retrieve(
+                  currentSubscription.stripeSubscription.stripeSubscriptionId
+                )
+              ).items.data[0].id,
+              price: newPlan.stripePriceId,
+            },
+          ],
+          proration_behavior: "always_invoice",
+        }
+      );
+
+      // Atualiza o registro da assinatura do Stripe
+      await prisma.stripeSubscription.update({
+        where: { id: currentSubscription.stripeSubscription.id },
+        data: {
+          status: "ACTIVE",
+        },
+      });
+    } else if (
+      currentSubscription.provider === "ASAAS" &&
+      currentSubscription.asaasSubscription
+    ) {
+      // Cancela a assinatura atual no Asaas
+      await asaas.subscriptions.delete(
+        currentSubscription.asaasSubscription.asaasSubscriptionId
+      );
+
+      // Cria uma nova assinatura com o novo plano
+      const nextDueDate = new Date();
+      nextDueDate.setDate(nextDueDate.getDate() + 1);
+
+      const asaasCustomer = await prisma.asaasCustomer.findUnique({
+        where: { id: currentSubscription.asaasSubscription.customerId },
+      });
+
+      if (!asaasCustomer) {
+        return res.status(404).json({ error: "Cliente Asaas não encontrado" });
+      }
+
+      const newAsaasSubscription = await asaas.subscriptions.create({
+        customer: asaasCustomer.asaasCustomerId,
+        billingType: "PIX",
+        value: newPlan.price,
+        nextDueDate: nextDueDate.toISOString().split("T")[0],
+        cycle: newPlan.interval === "month" ? "MONTHLY" : "WEEKLY",
+      });
+
+      // Atualiza o registro da assinatura do Asaas
+      await prisma.asaasSubscription.update({
+        where: { id: currentSubscription.asaasSubscription.id },
+        data: {
+          asaasSubscriptionId: newAsaasSubscription.id!,
+          status: "PENDING",
+          value: newPlan.price,
+          cycle: newPlan.interval,
+          nextDueDate: new Date(newAsaasSubscription.nextDueDate!),
+        },
+      });
+
+      // Busca o primeiro pagamento da nova assinatura
+      const firstPayment = await asaas.subscriptions.getPayments(
+        newAsaasSubscription.id!
+      );
+
+      if (firstPayment.data[0]) {
+        const pixQrCode = await asaas.payments.getPixQrCode(
+          firstPayment.data[0].id!
+        );
+
+        // Atualiza ou cria o registro de pagamento
+        const paymentData = {
+          asaasPaymentId: firstPayment.data[0].id!,
+          value: firstPayment.data[0].value!,
+          billingType: firstPayment.data[0].billingType || "PIX",
+          status: firstPayment.data[0].status || "PENDING",
+          dueDate: new Date(firstPayment.data[0].dueDate!),
+          subscriptionId: currentSubscription.asaasSubscription.id,
+          customerId: asaasCustomer.id,
+        };
+
+        await prisma.asaasPayment.create({
+          data: paymentData,
+        });
+      }
+    }
+
+    // Atualiza a assinatura central
+    const updatedSubscription = await prisma.subscription.update({
+      where: { id: currentSubscription.id },
+      data: {
+        planId: newPlan.id,
+        priceAmount: newPlan.price,
+        interval: newPlan.interval,
+        status:
+          currentSubscription.provider === "STRIPE" ? "ACTIVE" : "PENDING",
+      },
+      include: {
+        plan: true,
+        stripeSubscription: true,
+        asaasSubscription: {
+          include: {
+            payments: {
+              orderBy: {
+                dueDate: "desc",
+              },
+              take: 1,
+            },
+          },
+        },
+      },
+    });
+
+    // Se for Asaas e tiver novo pagamento, inclui os dados do PIX na resposta
+    if (
+      updatedSubscription.provider === "ASAAS" &&
+      updatedSubscription.asaasSubscription?.payments[0]
+    ) {
+      const lastPayment = updatedSubscription.asaasSubscription.payments[0];
+      const pixQrCode = await asaas.payments.getPixQrCode(
+        lastPayment.asaasPaymentId
+      );
+
+      return res.json({
+        subscription: updatedSubscription,
+        payment: {
+          ...lastPayment,
+          pixQrCodeUrl: pixQrCode.encodedImage,
+          pixKey: pixQrCode.payload,
+        },
+      });
+    }
+
+    res.json({ subscription: updatedSubscription });
+  } catch (error) {
+    console.error("Erro ao alterar plano:", error);
+    res.status(500).json({ error: "Erro ao alterar plano" });
+  }
+}) as RequestHandler);
+
 export default router;
