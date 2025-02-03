@@ -10,7 +10,7 @@ import billingRouter from "./routes/billing";
 import cors from "cors";
 const app = express();
 
-app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+// app.use(cors({ origin: "http://localhost:3000", credentials: true }));
 
 // Configuração especial para o webhook do Stripe
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
