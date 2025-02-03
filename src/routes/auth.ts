@@ -77,10 +77,11 @@ router.get("/me", authenticateToken, (async (
 }) as RequestHandler);
 
 router.post("/register", async (req, res) => {
-  const { name, email, supabase_uid } = req.body;
+  const { name, email, phone, supabase_uid } = req.body;
+
   try {
     const user = await prisma.user.create({
-      data: { name, email, supabase_uid },
+      data: { name, email, phone, supabase_uid },
       include: { profile: true },
     });
     res.status(201).json({ user });

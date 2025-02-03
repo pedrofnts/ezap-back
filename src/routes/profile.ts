@@ -83,6 +83,7 @@ router.put("/", authenticateToken, (async (
       create: {
         ...data,
         userId: req.user.id,
+        phone: data.phone || req.user.phone || undefined,
       },
     });
 
