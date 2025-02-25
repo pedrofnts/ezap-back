@@ -14,6 +14,7 @@ model User {
   supabase_uid   String          @unique
   password       String?
   phone          String?
+  referral       String?
   profile        Profile?
   searches       Search[]
   jobViews       JobView[]
@@ -161,27 +162,23 @@ model Plan {
 
 // Assinatura central
 model Subscription {
-  id                Int       @id @default(autoincrement())
-  userId            Int
+  id                Int      @id @default(autoincrement())
+  userId            Int      @unique
   planId            String
-  provider          String // STRIPE, ASAAS
-  status            String // PENDING, ACTIVE, CANCELLED, EXPIRED
-  currentPeriodEnd  DateTime
-  cancelAtPeriodEnd Boolean   @default(false)
-  trialEnd          DateTime?
+  provider          String
+  status            String
   priceAmount       Float
-  currency          String    @default("BRL")
-  interval          String // month, year
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  interval          String
+  currentPeriodEnd  DateTime
+  cancelAtPeriodEnd Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   // Relacionamentos
   user               User                @relation(fields: [userId], references: [id])
   plan               Plan                @relation(fields: [planId], references: [id])
   stripeSubscription StripeSubscription?
   asaasSubscription  AsaasSubscription?
-
-  @@unique([userId, status])
 }
 
 // Assinatura do Stripe

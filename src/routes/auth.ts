@@ -77,15 +77,22 @@ router.get("/me", authenticateToken, (async (
 }) as RequestHandler);
 
 router.post("/register", async (req, res) => {
-  const { name, email, phone, supabase_uid } = req.body;
+  const { name, email, phone, supabase_uid, referral } = req.body;
 
   try {
     const user = await prisma.user.create({
-      data: { name, email, phone, supabase_uid },
+      data: {
+        name,
+        email,
+        phone,
+        supabase_uid,
+        referral: referral || undefined,
+      },
       include: { profile: true },
     });
     res.status(201).json({ user });
   } catch (error) {
+    console.error("Erro ao criar usuário:", error);
     res.status(500).json({ error: "Erro ao criar usuário" });
   }
 });
