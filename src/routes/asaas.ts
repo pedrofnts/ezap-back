@@ -6,7 +6,7 @@ import { AsaasClient } from "asaas";
 const router = express.Router();
 const prisma = new PrismaClient();
 const asaas = new AsaasClient(process.env.ASAAS_API_KEY!, {
-  sandbox: true,
+  sandbox: false,
 });
 
 // Rota para criar uma assinatura PIX

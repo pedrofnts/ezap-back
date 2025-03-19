@@ -10,7 +10,7 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
   apiVersion: "2023-10-16",
 });
 const asaas = new AsaasClient(process.env.ASAAS_API_KEY!, {
-  sandbox: true,
+  sandbox: false,
 });
 
 router.get("/", authenticateToken, (async (
