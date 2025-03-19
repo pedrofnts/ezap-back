@@ -6,7 +6,7 @@ import { AsaasClient } from "asaas";
 const router = express.Router();
 const prisma = new PrismaClient();
 const asaas = new AsaasClient(process.env.ASAAS_API_KEY!, {
-  sandbox: process.env.NODE_ENV !== "production",
+  sandbox: false,
 });
 
 // Rota para criar uma assinatura PIX
@@ -70,7 +70,8 @@ router.post("/create-subscription", authenticateToken, (async (
         name: user.name,
         email: user.email,
         phone: user.phone || undefined,
-        cpfCnpj: "07192534978", // CPF padrão para sandbox
+        cpfCnpj: "07192534978",
+        notificationDisabled: true,
       });
 
       asaasCustomer = await prisma.asaasCustomer.create({
