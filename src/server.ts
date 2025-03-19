@@ -7,10 +7,15 @@ import stripeRouter from "./routes/stripe";
 import asaasRouter from "./routes/asaas";
 import plansRouter from "./routes/plans";
 import billingRouter from "./routes/billing";
-import cors from "cors";
+// import cors from "cors";
 const app = express();
 
-// app.use(cors({ origin: "http://localhost:3000", credentials: true }));
+// app.use(
+//   cors({
+//     origin: ["http://localhost:3000", "https://www.empregozap.com.br"],
+//     credentials: true,
+//   })
+// );
 
 // Configuração especial para o webhook do Stripe
 app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));

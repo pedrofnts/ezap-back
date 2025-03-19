@@ -15,9 +15,16 @@ router.get("/me", authenticateToken, (async (
   res: Response
 ) => {
   try {
+    console.log("[/me] Rota acessada, verificando usuário autenticado");
+
     if (!req.user?.id) {
+      console.log("[/me] Usuário não autenticado ou ID ausente");
       return res.status(401).json({ error: "Usuário não autenticado" });
     }
+
+    console.log(
+      `[/me] Buscando informações completas para usuário ID: ${req.user.id}`
+    );
 
     // Busca o usuário com os dados da assinatura
     const user = await prisma.user.findUnique({
@@ -46,8 +53,11 @@ router.get("/me", authenticateToken, (async (
     });
 
     if (!user) {
+      console.log(`[/me] Usuário ${req.user.id} não encontrado no banco`);
       return res.status(404).json({ error: "Usuário não encontrado" });
     }
+
+    console.log(`[/me] Usuário ${user.id} encontrado, formatando resposta`);
 
     // Verifica se o usuário tem uma assinatura ativa
     const subscription = user.subscription;
@@ -69,10 +79,14 @@ router.get("/me", authenticateToken, (async (
       },
     };
 
+    console.log(`[/me] Retornando resposta para usuário ${user.id}`);
     res.json(response);
   } catch (error) {
-    console.error("Erro ao buscar usuário:", error);
-    res.status(500).json({ error: "Erro ao buscar usuário" });
+    console.error("[/me] Erro ao buscar usuário:", error);
+    res.status(500).json({
+      error: "Erro ao buscar usuário",
+      details: error instanceof Error ? error.message : "Erro desconhecido",
+    });
   }
 }) as RequestHandler);
 
@@ -94,6 +108,81 @@ router.post("/register", async (req, res) => {
   } catch (error) {
     console.error("Erro ao criar usuário:", error);
     res.status(500).json({ error: "Erro ao criar usuário" });
+  }
+});
+
+// Nova rota para validar token
+router.post("/validate-token", async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      res.status(400).json({
+        valid: false,
+        error: "Token não fornecido",
+      });
+      return;
+    }
+
+    console.log(
+      `[/validate-token] Verificando token: ${token.substring(0, 15)}...`
+    );
+
+    // Verificar o token com o Supabase
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error) {
+      console.log("[/validate-token] Erro na verificação:", error.message);
+      res.status(200).json({
+        valid: false,
+        supabaseValid: false,
+        error: error.message,
+      });
+      return;
+    }
+
+    if (!data.user) {
+      res.status(200).json({
+        valid: false,
+        supabaseValid: true,
+        error: "Token válido, mas usuário não encontrado",
+      });
+      return;
+    }
+
+    // Verificar se o usuário existe no banco
+    const user = await prisma.user.findUnique({
+      where: { supabase_uid: data.user.id },
+    });
+
+    if (!user) {
+      res.status(200).json({
+        valid: false,
+        supabaseValid: true,
+        supabaseUser: {
+          id: data.user.id,
+          email: data.user.email,
+        },
+        error: "Usuário não encontrado no banco de dados",
+      });
+      return;
+    }
+
+    res.status(200).json({
+      valid: true,
+      supabaseValid: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      },
+    });
+  } catch (error) {
+    console.error("[/validate-token] Erro não tratado:", error);
+    res.status(500).json({
+      valid: false,
+      error: error instanceof Error ? error.message : "Erro desconhecido",
+    });
   }
 });
 
