@@ -11,16 +11,20 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
 
 // Webhook para receber eventos do Stripe
 router.post("/webhook", (async (req: Request, res: Response) => {
+  console.log("Webhook Stripe handler iniciado");
   const sig = req.headers["stripe-signature"];
+  console.log("Stripe Signature:", sig ? "presente" : "ausente");
 
   let event: Stripe.Event;
 
   try {
+    console.log("Corpo da requisição:", typeof req.body);
     event = stripe.webhooks.constructEvent(
       req.body,
       sig!,
       process.env.STRIPE_WEBHOOK_SECRET!
     );
+    console.log("Evento construído com sucesso:", event.type);
   } catch (err: any) {
     console.error("Erro no webhook:", err);
     return res.status(400).send(`Webhook Error: ${err.message}`);

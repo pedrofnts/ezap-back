@@ -18,7 +18,10 @@ const app = express();
 // );
 
 // Configuração especial para o webhook do Stripe
-app.use("/api/stripe/webhook", express.raw({ type: "application/json" }));
+app.use("/api/stripe/webhook", (req, res, next) => {
+  console.log("Webhook Stripe recebido:", req.url, req.method);
+  express.raw({ type: "application/json" })(req, res, next);
+});
 
 // Configuração padrão para outras rotas
 app.use(express.json());
