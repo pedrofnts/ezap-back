@@ -64,11 +64,9 @@ export const authenticateToken = async (
     next();
   } catch (error) {
     console.error("[Auth] Erro não tratado na autenticação:", error);
-    res
-      .status(403)
-      .json({
-        error: "Token inválido",
-        details: "Erro durante a verificação do token",
-      });
+    res.status(403).json({
+      error: "Token inválido",
+      details: "Erro durante a verificação do token",
+    });
   }
 };
